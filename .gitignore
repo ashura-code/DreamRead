@@ -1,0 +1,4 @@
+.env
+.vscode/
+.zed/
+.DS_Store
