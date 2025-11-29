@@ -10,9 +10,11 @@ import logging
 # CreateStore
 import os
 from typing import Optional
-from models import embedding_model
+from models import embedding_model, llm
 from langchain_community.vectorstores import FAISS
 from langchain.embeddings.base import Embeddings
+
+# Get Answers
 
 
 logger = logging.getLogger(__name__)
@@ -97,8 +99,41 @@ class CreateStore:
         return None
 
 
+class getAnswer:
+    def __init__(self, vector_store: FAISS, query: str):
+        self.vector_store = vector_store
+        self.query = query
+        self.relevant_docs = self.vector_store.search(
+            query=self.query, search_type="mmr", k=2)
 
-# loader = LoadLLMtxt("https://docs.chainlit.io/llms.txt")
-# docs = loader.load()
-# vector_store = CreateStore(docs, embedding_model).create()
+    def getWebContent(self):
+        docs = self.relevant_docs
+        web_contents_md_format = []
+        for doc in docs:
+            req = requests.get(doc.metadata["link"])
+            req.raise_for_status()
+            web_contents_md_format.append(
+                {"topic": doc.metadata["name"], "content": req.text})
+        prompt = f"""You are a helpful assisant who should help teach or resolve the query based on the given user query and context
+            
+            user_query = {self.query}
 
+            context = {"\n\n".join(f"### {d['topic']}\n{d['content']}" for d in web_contents_md_format)}
+
+                You should be able to teach the user proprly based on the question.
+                
+                """
+        return llm.invoke(prompt)
+
+
+# def getRetreival(vector_store:FAISS,query:str):
+#     relevant_docs = vector_store.search(query=query,search_type="mmr",k=2)
+
+
+# relevant docs + prompt + chat history -> LLM = complete
+loader = LoadLLMtxt("https://docs.chainlit.io/llms.txt")
+docs = loader.load()
+vector_store = CreateStore(docs, embedding_model).create()
+answer = getAnswer(vector_store=vector_store,
+                   query="How can I intergrate mcp to chainlit?")
+print(answer.getWebContent())
