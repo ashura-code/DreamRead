@@ -6,6 +6,15 @@ from typing import Optional
 from constants import LLM_TXT_PATTERN, LLM_TXT_URL_PATTERN
 import logging
 
+
+# CreateStore
+import os
+from typing import Optional
+from models import embedding_model
+from langchain_community.vectorstores import FAISS
+from langchain.embeddings.base import Embeddings
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,7 +58,7 @@ class LoadLLMtxt:
             description = match.group("description") or ""
 
             documents.append(Document(
-                page_content=name+","+description+","+link,
+                page_content=f"Name: {name}\nDescription: {description}\nLink: {link}",
                 metadata={
                     "name": name,
                     "link": link
@@ -66,5 +75,30 @@ class LoadLLMtxt:
         return docs
 
 
-loader = LoadLLMtxt("https://docs.chainlit.io/llms.txt")
-print(loader.load()[0])
+class CreateStore:
+    def __init__(self, documents: list[Document], embedding_model: Embeddings):
+        self.documents = documents
+        self.embedding_model = embedding_model
+
+    def create(self, path: Optional[str] = None) -> FAISS:
+        store = FAISS.from_documents(
+            documents=self.documents,
+            embedding=self.embedding_model
+        )
+        if path is not None:
+            store.save_local(path)
+        return store
+
+    @staticmethod
+    def loadStore(path: str, embedding_model: Embeddings) -> Optional[FAISS]:
+        if os.path.exists(path):
+            return FAISS.load_local(path, embedding_model, allow_dangerous_deserialization=True)
+        logger.warning(f"Store not found at {path}")
+        return None
+
+
+
+# loader = LoadLLMtxt("https://docs.chainlit.io/llms.txt")
+# docs = loader.load()
+# vector_store = CreateStore(docs, embedding_model).create()
+
